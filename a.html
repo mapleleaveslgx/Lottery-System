@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2026黎川县教育体育局年会抽奖</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/renderers/CSS3DRenderer.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <style>
+        :root {
+            --color-bg-1: #E3F2F5;  
+            --color-bg-2: #E3EBF8;  
+            --text-primary: #4A5568; 
+            --text-accent: #2D3748;
+        }
+
+        body { 
+            margin: 0; 
+            background: linear-gradient(135deg, var(--color-bg-1) 0%, #fff 50%, var(--color-bg-2) 100%); 
+            overflow: hidden; 
+            font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif; 
+            color: var(--text-primary);
+        }
+        
+        #container { width: 100%; height: 100vh; position: relative; z-index: 1; }
+        #bg-canvas { position: absolute; top: 0; left: 0; z-index: 0; pointer-events: none; opacity: 0.6; }
+
+        /* --- 标题样式 --- */
+        .main-title {
+            position: absolute; top: 5%; width: 100%; text-align: center; z-index: 10; pointer-events: none;
+        }
+        .main-title h1 {
+            font-size: 3.5rem; margin: 0; font-weight: 800;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            text-shadow: 0 10px 20px rgba(118, 75, 162, 0.15); letter-spacing: 4px;
+        }
+
+        /* --- 卡片样式 --- */
+        .element {
+            width: 140px; height: 180px;
+            background: rgba(255, 255, 255, 0.85);
+            border: 2px solid #fff; border-top: 4px solid var(--theme-color); 
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05), 0 4px 10px var(--theme-shadow);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            transition: all 0.4s; backdrop-filter: blur(4px); cursor: default;
+        }
+        .element:hover { transform: scale(1.1) translateY(-5px); background: #fff; z-index: 1000; }
+        .element .name { font-size: 24px; font-weight: 700; color: var(--text-accent); margin-top: 5px; }
+        .element .id-tag { font-size: 12px; color: #A0AEC0; background: #F7FAFC; padding: 2px 8px; border-radius: 10px; margin-bottom: 5px; }
+        
+        /* --- UI 控制栏 --- */
+        #menu { position: absolute; bottom: 40px; width: 100%; text-align: center; z-index: 100; }
+        .ctrl-panel { 
+            background: rgba(255, 255, 255, 0.95); padding: 20px 40px; 
+            border-radius: 50px; display: inline-flex; align-items: center; gap: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1); border: 1px solid #fff;
+        }
+        
+        button { 
+            background: linear-gradient(135deg, #88C9D3 0%, #63b3ed 100%);
+            border: none; color: white; padding: 12px 25px; cursor: pointer; font-size: 16px; 
+            border-radius: 25px; font-weight: 600; transition: 0.3s; box-shadow: 0 5px 15px rgba(99, 179, 237, 0.3);
+            white-space: nowrap;
+        }
+        button:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(99, 179, 237, 0.4); }
+        
+        /* 输入框和下拉框样式 */
+        .input-group { display: flex; align-items: center; background: #EDF2F7; padding: 5px 15px; border-radius: 25px; }
+        .input-group label { font-size: 14px; color: #718096; font-weight: bold; margin-right: 10px; }
+        select, input { 
+            background: transparent; border: none; color: var(--text-accent); 
+            font-weight: bold; font-size: 16px; outline: none; text-align: center;
+        }
+        select { cursor: pointer; padding-right: 5px; }
+        input { width: 50px; border-bottom: 2px solid #CBD5E0; }
+
+        /* --- 弹窗样式 --- */
+        #result-mask {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255,255,255,0.92); display: none; z-index: 200;
+            flex-direction: column; align-items: center; justify-content: center;
+            backdrop-filter: blur(12px);
+        }
+        .winner-title {
+            font-size: 3.5rem; color: #E53E3E; margin-bottom: 40px; font-weight: 900;
+            text-shadow: 0 5px 15px rgba(229, 62, 62, 0.2); letter-spacing: 3px;
+        }
+        #result-container { display: flex; gap: 30px; flex-wrap: wrap; justify-content: center; max-width: 90%; }
+        
+        .winner-card {
+            width: 200px; height: 260px; background: #fff;
+            border: 4px solid #F6AD55; box-shadow: 0 20px 50px rgba(246, 173, 85, 0.25);
+            border-radius: 20px; display: flex; align-items: center; justify-content: center;
+            font-size: 48px; font-weight: 900; color: #2D3748; position: relative;
+            animation: popIn 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; opacity: 0;
+        }
+        .winner-card::before { content: "✨"; position: absolute; top: -15px; left: -15px; font-size: 30px; }
+        .winner-card::after { 
+            content: attr(data-rank);
+            position: absolute; bottom: 20px; font-size: 16px; 
+            color: #F6AD55; font-weight: bold; letter-spacing: 2px;
+        }
+        @keyframes popIn {
+            0% { transform: scale(0.5) translateY(50px); opacity: 0; }
+            100% { transform: scale(1) translateY(0); opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="main-title">
+    <h1>2026黎川县教育体育局年会抽奖</h1>
+</div>
+
+<canvas id="bg-canvas"></canvas>
+<div id="container"></div>
+
+<div id="menu">
+    <div class="ctrl-panel">
+        <input type="file" id="excel-file" hidden onchange="importExcel(this)">
+        <button onclick="document.getElementById('excel-file').click()">📂 导入名单</button>
+        
+        <div class="input-group">
+            <label>奖项</label>
+            <select id="prize-select">
+                <option value="三等奖">三等奖</option>
+                <option value="二等奖">二等奖</option>
+                <option value="一等奖" style="color:red; font-weight:bold;">一等奖</option>
+            </select>
+        </div>
+
+        <div class="input-group">
+            <label>人数</label>
+            <input type="number" id="draw-count" value="1" min="1">
+        </div>
+
+        <button id="draw-btn" onclick="toggleDraw()">✨ 开始抽奖</button>
+        <button onclick="resetLottery()" style="background: #A0AEC0; font-size: 14px;">🗑️ 重置所有</button>
+    </div>
+</div>
+
+<div id="result-mask">
+    <div class="winner-title" id="winner-title-text">🎉 中奖名单 🎉</div>
+    <div id="result-container"></div>
+    <button onclick="closeResult()" style="margin-top: 60px; padding: 15px 60px; font-size: 18px; background: linear-gradient(135deg, #F6AD55 0%, #ED8936 100%);">收下喜悦</button>
+</div>
+
+<script>
+    // 默认演示名单
+    let table = ["陈建国", "李秀英", "王伟", "张敏", "刘洋", "赵丽", "孙强", "周杰", "吴婷", "郑平", "李根新", "马云", "林丹", "张三", "李四", "王五"];
+    
+    // 全局已中奖名单
+    let globalWonList = []; 
+    
+    // 关键人物配置
+    const TARGET_NAME = "李根新"; 
+
+    // 配置
+    const cardThemes = [
+        { color: '#88C9D3', shadow: 'rgba(136, 201, 211, 0.3)' },
+        { color: '#E2D6EA', shadow: 'rgba(226, 214, 234, 0.4)' },
+        { color: '#FFB7B2', shadow: 'rgba(255, 183, 178, 0.3)' },
+        { color: '#B5EAD7', shadow: 'rgba(181, 234, 215, 0.3)' },
+        { color: '#C7CEEA', shadow: 'rgba(199, 206, 234, 0.3)' }
+    ];
+    
+    let camera, scene, renderer, bgScene, bgCamera, bgRenderer;
+    let objects = [], particles;
+    let isRotating = true;
+
+    init();
+    initParticles();
+    animate();
+
+    function init() {
+        camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 1, 10000);
+        camera.position.z = 3000;
+        scene = new THREE.Scene();
+        refreshSphere();
+        renderer = new THREE.CSS3DRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.getElementById('container').appendChild(renderer.domElement);
+        window.addEventListener('resize', onWindowResize);
+    }
+
+    function initParticles() {
+        bgRenderer = new THREE.WebGLRenderer({ canvas: document.getElementById('bg-canvas'), alpha: true });
+        bgRenderer.setSize(window.innerWidth, window.innerHeight);
+        bgScene = new THREE.Scene();
+        bgCamera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 5000);
+        bgCamera.position.z = 1000;
+        const geometry = new THREE.BufferGeometry();
+        const vertices = []; const colors = [];
+        for (let i = 0; i < 1500; i++) {
+            vertices.push((Math.random() - 0.5) * 4000, (Math.random() - 0.5) * 4000, (Math.random() - 0.5) * 4000);
+            const color = new THREE.Color(cardThemes[Math.floor(Math.random() * cardThemes.length)].color);
+            colors.push(color.r, color.g, color.b);
+        }
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+        geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+        const material = new THREE.PointsMaterial({ size: 20, vertexColors: true, transparent: true, opacity: 0.8, map: createCircleTexture() });
+        particles = new THREE.Points(geometry, material);
+        bgScene.add(particles);
+    }
+    function createCircleTexture() {
+        const canvas = document.createElement('canvas'); canvas.width = 32; canvas.height = 32;
+        const ctx = canvas.getContext('2d'); ctx.beginPath(); ctx.arc(16, 16, 14, 0, 2 * Math.PI); ctx.fillStyle = 'white'; ctx.fill();
+        return new THREE.CanvasTexture(canvas);
+    }
+
+    function refreshSphere() {
+        for (let i = 0; i < objects.length; i++) scene.remove(objects[i]);
+        objects = [];
+        
+        const displayList = table; 
+        const l = displayList.length;
+        for (let i = 0; i < l; i++) {
+            const phi = Math.acos(-1 + (2 * i) / l);
+            const theta = Math.sqrt(l * Math.PI) * phi;
+            const element = document.createElement('div');
+            element.className = 'element';
+            const theme = cardThemes[i % cardThemes.length];
+            element.style.setProperty('--theme-color', theme.color);
+            element.style.setProperty('--theme-shadow', theme.shadow);
+            
+            if(globalWonList.includes(displayList[i])) {
+                element.style.background = "#ddd";
+                element.style.opacity = "0.5";
+            }
+
+            element.innerHTML = `<div class="id-tag">NO.${String(i+1).padStart(3, '0')}</div><div class="name">${displayList[i]}</div>`;
+            const object = new THREE.CSS3DObject(element);
+            object.position.setFromSphericalCoords(850, phi, theta);
+            const vector = new THREE.Vector3().copy(object.position).multiplyScalar(2);
+            object.lookAt(vector);
+            scene.add(object);
+            objects.push(object);
+        }
+    }
+
+    function importExcel(input) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const wb = XLSX.read(data, {type: 'array'});
+                const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header: 1});
+                
+                // 关键修正：这里加入了 .trim()，防止Excel里名字带空格导致匹配失败
+                const newTable = json.map(r => r[0])
+                    .filter(n => n && typeof n === 'string' && n.trim() !== "")
+                    .map(n => n.trim()); 
+                
+                if(newTable.length > 0) {
+                    table = newTable;
+                    globalWonList = []; 
+                    refreshSphere();
+                } else { alert("⚠️ Excel 数据格式不正确"); }
+            } catch (err) { alert("❌ 文件解析失败"); }
+        };
+        reader.readAsArrayBuffer(input.files[0]);
+    }
+
+    function toggleDraw() {
+        if (isRotating) {
+            isRotating = false;
+            document.getElementById('draw-btn').innerText = "🔄 重置球体";
+            document.getElementById('draw-btn').style.background = "#A0AEC0";
+            const count = parseInt(document.getElementById('draw-count').value) || 1;
+            const prizeType = document.getElementById('prize-select').value;
+            executeDraw(count, prizeType);
+        } else {
+            isRotating = true;
+            document.getElementById('draw-btn').innerText = "✨ 开始抽奖";
+            document.getElementById('draw-btn').style.background = "";
+            closeResult();
+        }
+    }
+
+    function executeDraw(count, prizeType) {
+        // 1. 获取基础可用池（未中奖的人）
+        let availablePool = table.filter(name => !globalWonList.includes(name));
+
+        // --- 核心逻辑加固：保护机制 ---
+        if (prizeType !== "一等奖") {
+            // 如果不是抽一等奖，把李根新从池子里移除。
+            // 确保他绝对不会不小心中了二等奖或三等奖。
+            availablePool = availablePool.filter(name => name !== TARGET_NAME);
+        }
+        // -----------------------------
+
+        if (availablePool.length < count && prizeType !== "一等奖") {
+            // 如果是一等奖且人数不够，可能需要把被保护的李根新算进去，所以这里只在非一等奖时报错
+            alert(`⚠️ 剩余人数不足！`);
+            return;
+        }
+
+        let currentBatchWinners = [];
+        
+        // --- 核心逻辑加固：必中机制 ---
+        if (prizeType === "一等奖") {
+            // 检查他是否未中奖（由于上面的保护机制，他应该一直在未中奖名单里）
+            if (!globalWonList.includes(TARGET_NAME)) {
+                // 只要他没中过奖，不管池子里有没有（理论上有），强制添加
+                currentBatchWinners.push(TARGET_NAME);
+                
+                // 从可用池中移除他，避免重复选中（如果他在池子里的话）
+                const idx = availablePool.indexOf(TARGET_NAME);
+                if (idx > -1) availablePool.splice(idx, 1);
+                
+                // 占用一个名额
+                count--; 
+                console.log(`🎯 ${TARGET_NAME} 已内定锁定`);
+            }
+        }
+        // -----------------------------
+
+        // 随机填充剩余名额
+        for (let i = 0; i < count; i++) {
+            if (availablePool.length === 0) break;
+            const randomIndex = Math.floor(Math.random() * availablePool.length);
+            const winner = availablePool[randomIndex];
+            currentBatchWinners.push(winner);
+            availablePool.splice(randomIndex, 1); 
+        }
+
+        // 记录结果
+        globalWonList = globalWonList.concat(currentBatchWinners);
+        refreshSphere();
+        showResults(currentBatchWinners, prizeType);
+    }
+
+    function showResults(names, prizeTitle) {
+        const container = document.getElementById('result-container');
+        container.innerHTML = '';
+        document.getElementById('winner-title-text').innerText = `🎉 ${prizeTitle}名单 🎉`;
+        
+        names.forEach((name, index) => {
+            const card = document.createElement('div');
+            card.className = 'winner-card';
+            card.innerText = name;
+            card.setAttribute('data-rank', prizeTitle);
+            card.style.animationDelay = `${index * 0.1}s`;
+            container.appendChild(card);
+        });
+        document.getElementById('result-mask').style.display = 'flex';
+    }
+
+    function closeResult() {
+        document.getElementById('result-mask').style.display = 'none';
+    }
+    
+    function resetLottery() {
+        if(confirm("确定要清空所有中奖记录，重新开始吗？")) {
+            globalWonList = [];
+            refreshSphere();
+            alert("已重置，所有人均可再次中奖。");
+        }
+    }
+
+    function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        bgCamera.aspect = window.innerWidth / window.innerHeight; bgCamera.updateProjectionMatrix();
+        bgRenderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+        if (isRotating) { scene.rotation.y += 0.003; scene.rotation.x += 0.001; }
+        if(particles) { particles.rotation.y -= 0.0005; particles.rotation.x += 0.0002; }
+        renderer.render(scene, camera);
+        bgRenderer.render(bgScene, bgCamera);
+    }
+</script>
+
+</body>
+</html>
